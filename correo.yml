@@ -1,0 +1,102 @@
+---
+- hosts: mailserver
+  remote_user: admin
+  become: yes
+  become_method: sudo
+         
+  vars:
+      packages: 
+       - postfix
+       - dovecot
+       - squirrelmail
+       - httpd
+
+  tasks:
+  - name: Epel repo is installed
+    yum:
+      name: epel-release
+      state: present
+
+  - name: install packages
+    yum:
+      name: "{{ packages }}"
+      state: latest
+
+  - name: configurar server
+    template: 
+      src: ./postfix-main.cf.j2
+      dest: /etc/postfix/main.cf
+      owner: root
+      group: root
+      mode: 0644 
+    notify: Restart postfix
+
+  - name: open firewall ports
+    firewalld:
+      service: smtp
+      permanent: yes 
+      state: enabled
+      zone: public
+
+  - name: open fireall dovecot
+    firewalld:
+       service: imap
+       permanent: yes
+       state: enabled
+       zone: public
+
+  - name: copy dovecot
+    copy:
+      src: ./10-mail.conf
+      dest: /etc/dovecot/conf.d/10-mail.conf
+      owner: root
+      group: root
+      mode: 0644
+    notify: Restart dovecot
+  
+  - name: dovecot runing and enabled
+    service:
+      name: dovecot
+      state: started
+      enabled: true
+
+  - name: configures squirrelmail
+    template:
+       src: ./squirrelmail.conf.j2
+       dest: /etc/squirrelmail/config.php
+       owner: root
+       group: root
+       mode: 0640
+ 
+  - name: Apache running and enabled
+    service:
+      name: httpd
+      state: started
+      enabled: true
+ 
+  - name: Open httpd firewall port
+    firewalld:
+      service: httpd
+      permanent: yes
+      state: enabled
+      zone: public     
+
+  - name: mail server runing and enabled
+    service:
+       name: postfix
+       state: started
+       enabled: true
+
+  handlers:
+  - name: Restart postfix
+    service: 
+      name: postfix
+      state: restarted
+      enabled: yes
+
+  - name: restart dovecot
+    service:
+      name: dovecot
+      state: restarted
+      enables: yes    
+
